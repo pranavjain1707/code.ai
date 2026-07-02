@@ -208,7 +208,7 @@ function renderConversationsList(conversations) {
     container.innerHTML = '';
     
     if (!conversations || conversations.length === 0) {
-        container.innerHTML = '<div class="text-center text-muted py-4 small">No chats found</div>';
+        container.innerHTML = '<div class="text-center theme-text-muted py-4 small">No chats found</div>';
         return;
     }
     
