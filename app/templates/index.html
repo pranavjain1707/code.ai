@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Local AI Chatbot (Docker)</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- KaTeX CSS for Math -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <!-- Highlight.js VS2015 Dark style for code blocks -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- SIDEBAR -->
+        <aside class="sidebar glass-panel" id="sidebar">
+            <div class="sidebar-header d-flex align-items-center justify-content-between">
+                <div class="brand-title"><i class="fa-solid fa-brain-circuit me-2"></i>Antigravity</div>
+                <button class="btn btn-close btn-close-white btn-sidebar-toggle" id="closeSidebarBtn"></button>
+            </div>
+            
+            <div class="px-3 pt-3">
+                <button class="btn glass-btn w-100 py-2 d-flex align-items-center justify-content-center gap-2" id="newChatBtn">
+                    <i class="fa-solid fa-plus"></i> New Chat
+                </button>
+            </div>
+            
+            <div class="px-3 pt-3">
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-secondary border-end-0 text-muted py-1" style="border-radius: 0.5rem 0 0 0.5rem;"><i class="fa-solid fa-magnifying-glass small"></i></span>
+                    <input type="text" class="form-control bg-transparent border-secondary border-start-0 text-white py-1 small" style="border-radius: 0 0.5rem 0.5rem 0;" id="searchChatInput" placeholder="Search conversations...">
+                </div>
+            </div>
+
+            <!-- CHAT THREADS LIST -->
+            <div class="sidebar-content" id="conversationsContainer">
+                <div class="text-center text-muted py-4 small">Loading chats...</div>
+            </div>
+            
+            <!-- USER FOOTER PROFILE -->
+            <div class="sidebar-footer">
+                <div class="dropdown">
+                    <div class="d-flex align-items-center justify-content-between p-2 rounded cursor-pointer border border-transparent hover-overlay" data-bs-toggle="dropdown" aria-expanded="false" id="profileDropdownTrigger" style="cursor: pointer;">
+                        <div class="d-flex align-items-center gap-2 min-width-0">
+                            <div class="message-avatar" id="footerUserAvatar">U</div>
+                            <div class="min-width-0">
+                                <div class="fw-bold text-white small text-truncate" id="footerUsername">User</div>
+                                <div class="text-muted small text-truncate" id="footerEmail" style="font-size: 0.75rem;">user@example.com</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-ellipsis-vertical text-muted"></i>
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-dark w-100 shadow border-secondary glass-panel">
+                        <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#profileModal"><i class="fa-solid fa-user me-2 text-secondary"></i> My Dashboard</a></li>
+                        <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal"><i class="fa-solid fa-sliders me-2 text-secondary"></i> Preferences</a></li>
+                        <li><hr class="dropdown-divider border-secondary"></li>
+                        <li><a class="dropdown-item py-2 text-danger" href="#" id="logoutBtn"><i class="fa-solid fa-right-from-bracket me-2"></i> Log Out</a></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CHAT WINDOW -->
+        <main class="main-chat-area">
+            
+            <!-- NAVBAR -->
+            <header class="navbar-chat glass-panel">
+                <div class="d-flex align-items-center gap-3">
+                    <button class="btn btn-outline-secondary btn-sidebar-toggle px-2 py-1" id="openSidebarBtn">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div>
+                        <h5 class="mb-0 text-white text-truncate" id="activeChatTitle" style="max-width: 250px;">New Conversation</h5>
+                        <small class="text-muted" id="activeChatModelText">Select a model to begin</small>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-center gap-2">
+                    <select class="form-select form-select-sm bg-transparent border-secondary text-white w-auto" id="modelSelectorDropdown" style="max-width: 240px; border-radius: 0.5rem;">
+                        <option value="" disabled selected>Loading models...</option>
+                    </select>
+                    <button class="btn btn-outline-secondary btn-sm" id="themeToggleBtn" title="Toggle Theme">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- MESSAGES CONTAINER -->
+            <section class="chat-messages" id="chatMessages">
+                <!-- Empty State Welcome -->
+                <div class="welcome-container" id="emptyChatWelcome">
+                    <div class="welcome-logo"><i class="fa-solid fa-brain-circuit"></i></div>
+                    <h2 class="text-white fw-bold mb-3">Antigravity Chatbot</h2>
+                    <p class="lead text-secondary mb-4" style="max-width: 500px;">
+                        A premium local conversation workspace powered by Docker. Choose a model, configure system settings, and type your question to stream replies.
+                    </p>
+                    <div class="row g-3 w-100 justify-content-center" style="max-width: 700px;">
+                        <div class="col-md-4">
+                            <div class="stat-box">
+                                <i class="fa-solid fa-code text-accent mb-2" style="font-size: 1.5rem; color: var(--accent-secondary);"></i>
+                                <h6 class="text-white">Syntax Highlighting</h6>
+                                <p class="small text-muted mb-0">Renders block code blocks dynamically</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-box">
+                                <i class="fa-solid fa-square-root-variable text-accent mb-2" style="font-size: 1.5rem; color: var(--accent-secondary);"></i>
+                                <h6 class="text-white">Latex Math</h6>
+                                <p class="small text-muted mb-0">Full rendering of math equations</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-box">
+                                <i class="fa-solid fa-bolt text-accent mb-2" style="font-size: 1.5rem; color: var(--accent-secondary);"></i>
+                                <h6 class="text-white">Streaming API</h6>
+                                <p class="small text-muted mb-0">Real-time answers via server-sent events</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CHAT INPUT AREA -->
+            <footer class="chat-input-area">
+                <div class="chat-input-wrapper">
+                    <textarea class="chat-textarea" id="chatTextarea" rows="1" placeholder="Type your message here... (Press Shift+Enter for new line)"></textarea>
+                    <div class="chat-input-actions">
+                        <button class="btn btn-send" id="sendMessageBtn" disabled>
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="text-center text-muted small mt-2" style="font-size: 0.75rem;">
+                    Answers are powered by local Docker-hosted models. All local inferences are free and offline-capable.
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- PROFILE / USER DASHBOARD MODAL -->
+    <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-secondary text-white glass-panel">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-chart-line me-2 text-accent" style="color: var(--accent-secondary);"></i> User Analytics & Dashboard</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-4">
+                    <div class="row align-items-center mb-4">
+                        <div class="col-auto">
+                            <div class="message-avatar" style="width: 70px; height: 70px; font-size: 1.8rem;" id="modalAvatar">U</div>
+                        </div>
+                        <div class="col">
+                            <h4 class="mb-1" id="modalUsername">User Name</h4>
+                            <p class="text-muted mb-0" id="modalEmail">user@example.com</p>
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom border-secondary pb-2 mb-3">Usage Statistics</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-4">
+                            <div class="stat-box">
+                                <div class="text-secondary small mb-1">Total Requests</div>
+                                <div class="stat-val" id="statRequests">0</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="stat-box">
+                                <div class="text-secondary small mb-1">Estimated Cost</div>
+                                <div class="stat-val" id="statCost">$0.00</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="stat-box">
+                                <div class="text-secondary small mb-1">Tokens Exchanged</div>
+                                <div class="stat-val" id="statTokens">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom border-secondary pb-2 mb-3">Edit Profile Info</h6>
+                    <form id="editProfileForm">
+                        <div class="mb-3">
+                            <label for="editUsername" class="form-label small text-secondary">Username</label>
+                            <input type="text" class="form-control bg-transparent border-secondary text-white" id="editUsername" required>
+                        </div>
+                        <button type="submit" class="btn btn-sm glass-btn">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREFERENCES / SETTINGS MODAL -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-secondary text-white glass-panel">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-sliders me-2 text-accent" style="color: var(--accent-secondary)"></i> Preferences Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-4">
+                    <form id="settingsForm">
+                        <div class="mb-3">
+                            <label for="settingsDefaultModel" class="form-label small text-secondary">Default AI Model</label>
+                            <select class="form-select bg-transparent border-secondary text-white" id="settingsDefaultModel">
+                                <!-- Dynamically filled -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="settingsSystemPrompt" class="form-label small text-secondary">System Instruction Prompt</label>
+                            <textarea class="form-control bg-transparent border-secondary text-white" id="settingsSystemPrompt" rows="4" placeholder="Instruction to guide the AI behavior..."></textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small text-secondary d-block">Interface Theme</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="themeRadio" id="themeRadioDark" value="dark" checked>
+                                <label class="form-check-label text-white small" for="themeRadioDark">Dark Mode</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="themeRadio" id="themeRadioLight" value="light">
+                                <label class="form-check-label text-white small" for="themeRadioLight">Light Mode</label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn w-100 text-white fw-bold" style="background: var(--accent-gradient); border: none;">
+                            Save Preferences
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Markdown-It CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.2/markdown-it.min.js"></script>
+    <!-- Highlight.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- KaTeX CDN for Math -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    
+    <!-- App Client Script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

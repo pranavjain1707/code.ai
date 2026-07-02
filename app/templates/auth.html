@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Local AI Chatbot (Docker)</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .auth-wrapper {
+            perspective: 1000px;
+            width: 100%;
+            max-width: 440px;
+        }
+        .flip-container {
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            position: relative;
+            min-height: 520px;
+        }
+        .flip-container.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            backface-visibility: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="auth-container">
+
+    <div class="auth-wrapper px-3">
+        <div class="flip-container" id="flipContainer">
+            
+            <!-- LOGIN CARD (FRONT) -->
+            <div class="card-front auth-card glass-panel d-flex flex-column justify-content-center">
+                <div class="auth-logo"><i class="fa-solid fa-brain-circuit me-2"></i>Antigravity</div>
+                <h4 class="text-center mb-4">Welcome Back</h4>
+                
+                <div id="loginAlert" class="alert alert-danger d-none py-2" role="alert"></div>
+
+                <form id="loginForm">
+                    <div class="mb-3">
+                        <label for="loginEmail" class="form-label text-secondary small">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-secondary text-muted"><i class="fa-solid fa-envelope"></i></span>
+                            <input type="email" class="form-control bg-transparent border-secondary text-white" id="loginEmail" placeholder="name@example.com" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between">
+                            <label for="loginPassword" class="form-label text-secondary small">Password</label>
+                            <a href="#" class="small text-decoration-none text-accent" id="forgotBtn" style="color: var(--accent-secondary)">Forgot Password?</a>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-secondary text-muted"><i class="fa-solid fa-lock"></i></span>
+                            <input type="password" class="form-control bg-transparent border-secondary text-white" id="loginPassword" placeholder="••••••••" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn w-100 text-white fw-bold py-2 mb-3" style="background: var(--accent-gradient); border: none;">
+                        Sign In <i class="fa-solid fa-arrow-right-to-bracket ms-2"></i>
+                    </button>
+                </form>
+
+                <p class="text-center text-secondary small mb-0">
+                    Don't have an account? <a href="#" class="text-decoration-none fw-bold" id="toSignup" style="color: var(--accent-secondary)">Sign Up</a>
+                </p>
+            </div>
+
+            <!-- SIGNUP CARD (BACK) -->
+            <div class="card-back auth-card glass-panel d-flex flex-column justify-content-center">
+                <div class="auth-logo"><i class="fa-solid fa-brain-circuit me-2"></i>Antigravity</div>
+                <h4 class="text-center mb-4">Create Account</h4>
+                
+                <div id="signupAlert" class="alert alert-danger d-none py-2" role="alert"></div>
+                <div id="signupSuccess" class="alert alert-success d-none py-2" role="alert"></div>
+
+                <form id="signupForm">
+                    <div class="mb-3">
+                        <label for="signupUsername" class="form-label text-secondary small">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-secondary text-muted"><i class="fa-solid fa-user"></i></span>
+                            <input type="text" class="form-control bg-transparent border-secondary text-white" id="signupUsername" placeholder="johndoe" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="signupEmail" class="form-label text-secondary small">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-secondary text-muted"><i class="fa-solid fa-envelope"></i></span>
+                            <input type="email" class="form-control bg-transparent border-secondary text-white" id="signupEmail" placeholder="name@example.com" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="signupPassword" class="form-label text-secondary small">Password (Min. 6 characters)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-secondary text-muted"><i class="fa-solid fa-lock"></i></span>
+                            <input type="password" class="form-control bg-transparent border-secondary text-white" id="signupPassword" placeholder="••••••••" minlength="6" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn w-100 text-white fw-bold py-2 mb-3" style="background: var(--accent-gradient); border: none;">
+                        Sign Up <i class="fa-solid fa-user-plus ms-2"></i>
+                    </button>
+                </form>
+
+                <p class="text-center text-secondary small mb-0">
+                    Already have an account? <a href="#" class="text-decoration-none fw-bold" id="toLogin" style="color: var(--accent-secondary)">Sign In</a>
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Auth Client Script -->
+    <script>
+        const flipContainer = document.getElementById('flipContainer');
+        const toSignup = document.getElementById('toSignup');
+        const toLogin = document.getElementById('toLogin');
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        const loginAlert = document.getElementById('loginAlert');
+        const signupAlert = document.getElementById('signupAlert');
+        const signupSuccess = document.getElementById('signupSuccess');
+
+        // Toggle card flipping
+        toSignup.addEventListener('click', (e) => {
+            e.preventDefault();
+            flipContainer.classList.add('flipped');
+            loginAlert.classList.add('d-none');
+        });
+        
+        toLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            flipContainer.classList.remove('flipped');
+            signupAlert.classList.add('d-none');
+            signupSuccess.classList.add('d-none');
+        });
+
+        // Forgot password notice
+        document.getElementById('forgotBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            alert("To reset your password, please sign up again or contact your administrator.");
+        });
+
+        // Submit Login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loginAlert.classList.add('d-none');
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Save JWT token to localStorage
+                    localStorage.setItem('access_token', data.access_token);
+                    // Redirect to home dashboard
+                    window.location.href = '/';
+                } else {
+                    loginAlert.textContent = data.detail || 'Login failed. Please check credentials.';
+                    loginAlert.classList.remove('d-none');
+                }
+            } catch (err) {
+                loginAlert.textContent = 'Server connection error. Please try again.';
+                loginAlert.classList.remove('d-none');
+            }
+        });
+
+        // Submit Signup
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            signupAlert.classList.add('d-none');
+            signupSuccess.classList.add('d-none');
+            
+            const username = document.getElementById('signupUsername').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+
+            try {
+                const response = await fetch('/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, username })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    signupSuccess.textContent = data.message || 'Signup successful! Please sign in.';
+                    signupSuccess.classList.remove('d-none');
+                    signupForm.reset();
+                    // Auto flip back after 2 seconds
+                    setTimeout(() => {
+                        flipContainer.classList.remove('flipped');
+                    }, 2000);
+                } else {
+                    signupAlert.textContent = data.detail || 'Signup failed. Please try again.';
+                    signupAlert.classList.remove('d-none');
+                }
+            } catch (err) {
+                signupAlert.textContent = 'Server connection error. Please try again.';
+                signupAlert.classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+</html>
