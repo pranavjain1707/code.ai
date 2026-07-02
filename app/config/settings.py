@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Docker Model Runner Settings
     DOCKER_MODEL_RUNNER_URL: str = "http://localhost:12434/v1"
 
+    # OpenRouter Settings (for cloud deployment)
+    OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+
     # Supabase Settings
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""

@@ -8,6 +8,15 @@ from app.services.redis_cache import cache_service
 
 logger = logging.getLogger(__name__)
 
+# Curated list of high-quality free OpenRouter models for cloud deployment
+SUPPORTED_CLOUD_MODELS = [
+    {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "google/gemma-2-9b-it:free", "name": "Gemma 2 9B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "qwen/qwen-2-7b-instruct:free", "name": "Qwen 2 7B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "microsoft/phi-3-medium-128k-instruct:free", "name": "Phi 3 Medium (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "meta-llama/llama-3-8b-instruct:free", "name": "Llama 3 8B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}}
+]
+
 # Fallback local models if the local docker runner is offline
 FALLBACK_LOCAL_MODELS = [
     {"id": "llama3", "name": "Llama 3 (Local)"},
@@ -18,10 +27,19 @@ FALLBACK_LOCAL_MODELS = [
 
 class LocalModelService:
     def __init__(self):
-        self.base_url = settings.DOCKER_MODEL_RUNNER_URL.rstrip('/')
-        self.headers = {
-            "Content-Type": "application/json"
-        }
+        if settings.OPENROUTER_API_KEY:
+            self.base_url = settings.OPENROUTER_BASE_URL.rstrip('/')
+            self.headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://github.com/pranavjain1707/code.ai",
+                "X-Title": "OpenRouter AI Chatbot"
+            }
+        else:
+            self.base_url = settings.DOCKER_MODEL_RUNNER_URL.rstrip('/')
+            self.headers = {
+                "Content-Type": "application/json"
+            }
 
     def count_tokens(self, text: str) -> int:
         """Estimate token count for a text chunk (approx 4 chars per token)."""
@@ -30,11 +48,14 @@ class LocalModelService:
         return max(1, len(text) // 4)
 
     def estimate_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> float:
-        """Local models run free, so cost is always 0.0."""
+        """Local and free cloud models run free, so cost is always 0.0."""
         return 0.0
 
     async def get_models(self) -> List[Dict[str, Any]]:
-        """Get models available from the local Docker Model Runner with caching."""
+        """Get models list. Returns free cloud models if OpenRouter is active, else local models."""
+        if settings.OPENROUTER_API_KEY:
+            return SUPPORTED_CLOUD_MODELS
+
         cache_key = "local_models_list"
         cached_models = cache_service.get(cache_key)
         
@@ -67,6 +88,7 @@ class LocalModelService:
             logger.warning(f"Failed to fetch models from local runner: {e}")
             
         return FALLBACK_LOCAL_MODELS
+
 
     async def _send_request_with_retry(
         self, 

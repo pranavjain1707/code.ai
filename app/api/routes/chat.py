@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.auth.jwt import get_current_user
 from app.schemas.models import ChatRequest
+from app.config.settings import settings
 from app.services.supabase_client import supabase_service
 from app.services.local_model_client import local_model_service
 
@@ -41,9 +42,10 @@ async def chat_blocking(payload: ChatRequest, current_user: dict = Depends(get_c
         # Retrieve user preferences
         prefs = supabase_service.get_preferences(user_id)
         selected_model = payload.model or prefs.get("default_model") or "llama3"
-        # Fallback legacy cloud models to local default model
-        if any(cloud_pattern in selected_model for cloud_pattern in ["google/", "openai/", "anthropic/", "meta-llama/", "mistralai/"]):
-            selected_model = "llama3"
+        # Fallback legacy cloud models to local default model if not using OpenRouter cloud client
+        if not settings.OPENROUTER_API_KEY:
+            if any(cloud_pattern in selected_model for cloud_pattern in ["google/", "openai/", "anthropic/", "meta-llama/", "mistralai/"]):
+                selected_model = "llama3"
         system_prompt = prefs.get("system_prompt")
         
         conversation_id = payload.conversation_id
@@ -132,9 +134,10 @@ async def chat_streaming(payload: ChatRequest, current_user: dict = Depends(get_
     try:
         prefs = supabase_service.get_preferences(user_id)
         selected_model = payload.model or prefs.get("default_model") or "llama3"
-        # Fallback legacy cloud models to local default model
-        if any(cloud_pattern in selected_model for cloud_pattern in ["google/", "openai/", "anthropic/", "meta-llama/", "mistralai/"]):
-            selected_model = "llama3"
+        # Fallback legacy cloud models to local default model if not using OpenRouter cloud client
+        if not settings.OPENROUTER_API_KEY:
+            if any(cloud_pattern in selected_model for cloud_pattern in ["google/", "openai/", "anthropic/", "meta-llama/", "mistralai/"]):
+                selected_model = "llama3"
         system_prompt = prefs.get("system_prompt")
         
         conversation_id = payload.conversation_id
