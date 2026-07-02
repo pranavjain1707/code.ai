@@ -89,12 +89,23 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     """
     user_id = current_user["user"].id
     profile = supabase_service.get_profile(user_id)
+    if not profile:
+        profile = {}
+        
+    # Safeguard email and username from Supabase Auth user session object
+    if not profile.get("email"):
+        profile["email"] = getattr(current_user["user"], "email", None) or ""
+    if not profile.get("username"):
+        user_metadata = getattr(current_user["user"], "user_metadata", None) or {}
+        profile["username"] = user_metadata.get("username") or (profile["email"].split("@")[0] if profile.get("email") else "User")
+        
     usage = supabase_service.get_api_usage_stats(user_id)
     return {
         "status": "success",
         "profile": profile,
         "usage_stats": usage
     }
+
 
 @router.put("/profile")
 async def update_profile(payload: ProfileUpdate, current_user: dict = Depends(get_current_user)):
