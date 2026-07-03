@@ -42,10 +42,17 @@ async def chat_blocking(payload: ChatRequest, current_user: dict = Depends(get_c
         # Retrieve user preferences
         prefs = supabase_service.get_preferences(user_id)
         selected_model = payload.model or prefs.get("default_model") or "llama3"
-        # Fallback legacy cloud models to local default model if not using OpenRouter cloud client
-        if not settings.OPENROUTER_API_KEY:
+        
+        # Fallback handling for cloud vs local models
+        if settings.OPENROUTER_API_KEY:
+            from app.services.local_model_client import SUPPORTED_CLOUD_MODELS
+            cloud_model_ids = {m["id"] for m in SUPPORTED_CLOUD_MODELS}
+            if selected_model not in cloud_model_ids:
+                selected_model = "openrouter/free"
+        else:
             if any(cloud_pattern in selected_model for cloud_pattern in ["google/", "openai/", "anthropic/", "meta-llama/", "mistralai/"]):
                 selected_model = "llama3"
+                
         system_prompt = prefs.get("system_prompt")
         
         conversation_id = payload.conversation_id
@@ -134,10 +141,17 @@ async def chat_streaming(payload: ChatRequest, current_user: dict = Depends(get_
     try:
         prefs = supabase_service.get_preferences(user_id)
         selected_model = payload.model or prefs.get("default_model") or "llama3"
-        # Fallback legacy cloud models to local default model if not using OpenRouter cloud client
-        if not settings.OPENROUTER_API_KEY:
+        
+        # Fallback handling for cloud vs local models
+        if settings.OPENROUTER_API_KEY:
+            from app.services.local_model_client import SUPPORTED_CLOUD_MODELS
+            cloud_model_ids = {m["id"] for m in SUPPORTED_CLOUD_MODELS}
+            if selected_model not in cloud_model_ids:
+                selected_model = "openrouter/free"
+        else:
             if any(cloud_pattern in selected_model for cloud_pattern in ["google/", "openai/", "anthropic/", "meta-llama/", "mistralai/"]):
                 selected_model = "llama3"
+                
         system_prompt = prefs.get("system_prompt")
         
         conversation_id = payload.conversation_id

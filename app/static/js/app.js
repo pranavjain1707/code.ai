@@ -142,18 +142,30 @@ function populateModelsDropdowns() {
     selector.innerHTML = '';
     settingsSelector.innerHTML = '';
     
+    let isModelAvailable = false;
     modelsList.forEach(m => {
         const opt1 = document.createElement('option');
         opt1.value = m.id;
         opt1.textContent = m.name;
-        if (m.id === activeModel) opt1.selected = true;
+        if (m.id === activeModel) {
+            opt1.selected = true;
+            isModelAvailable = true;
+        }
         selector.appendChild(opt1);
         
         const opt2 = document.createElement('option');
         opt2.value = m.id;
         opt2.textContent = m.name;
+        if (m.id === activeModel) opt2.selected = true;
         settingsSelector.appendChild(opt2);
     });
+    
+    // Fallback to the first available model if the active model isn't supported/available
+    if (!isModelAvailable && modelsList.length > 0) {
+        activeModel = modelsList[0].id;
+        selector.value = activeModel;
+        settingsSelector.value = activeModel;
+    }
     
     document.getElementById('activeChatModelText').textContent = activeModel;
 }
@@ -258,6 +270,11 @@ async function selectConversation(id) {
             const data = await response.json();
             document.getElementById('activeChatTitle').textContent = data.conversation.title;
             activeModel = data.conversation.model;
+            // Fallback if the loaded conversation's model is not available in the current mode
+            const isModelAvailable = modelsList.some(m => m.id === activeModel);
+            if (!isModelAvailable && modelsList.length > 0) {
+                activeModel = modelsList[0].id;
+            }
             document.getElementById('modelSelectorDropdown').value = activeModel;
             document.getElementById('activeChatModelText').textContent = activeModel;
             

@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 
 # Curated list of high-quality free OpenRouter models for cloud deployment
 SUPPORTED_CLOUD_MODELS = [
+    {"id": "openrouter/free", "name": "Auto Free Router (Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
     {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "google/gemma-2-9b-it:free", "name": "Gemma 2 9B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "qwen/qwen-2-7b-instruct:free", "name": "Qwen 2 7B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "microsoft/phi-3-medium-128k-instruct:free", "name": "Phi 3 Medium (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "meta-llama/llama-3-8b-instruct:free", "name": "Llama 3 8B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}}
+    {"id": "meta-llama/llama-3.2-3b-instruct:free", "name": "Llama 3.2 3B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "name": "Dolphin Mistral 24B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}}
 ]
 
 # Fallback local models if the local docker runner is offline
