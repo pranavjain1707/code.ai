@@ -43,3 +43,10 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Cached generated images
+app/static/generated/
+
+# Local databases and logs
+local_db.json
+*.log

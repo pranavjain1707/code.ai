@@ -10,11 +10,8 @@ logger = logging.getLogger(__name__)
 
 # Curated list of high-quality free OpenRouter models for cloud deployment
 SUPPORTED_CLOUD_MODELS = [
-    {"id": "openrouter/free", "name": "Auto Free Router (Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "meta-llama/llama-3.2-3b-instruct:free", "name": "Llama 3.2 3B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "name": "Dolphin Mistral 24B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
-    {"id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B (Free Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}}
+    {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra (Free)", "pricing": {"prompt": "0.0", "completion": "0.0"}},
+    {"id": "openrouter/free", "name": "Auto Free Router (Cloud)", "pricing": {"prompt": "0.0", "completion": "0.0"}}
 ]
 
 # Fallback local models if the local docker runner is offline
@@ -98,6 +95,7 @@ class LocalModelService:
         """Execute request to local model runner with retry backoff."""
         retries = 3
         backoff = 1.0
+        last_response = None
         
         for attempt in range(retries):
             try:
@@ -105,6 +103,7 @@ class LocalModelService:
                     client = httpx.AsyncClient(timeout=30.0)
                     req = client.build_request("POST", f"{self.base_url}/chat/completions", headers=self.headers, json=payload)
                     response = await client.send(req, stream=True)
+                    last_response = response
                     if response.status_code == 429:
                         await asyncio.sleep(backoff)
                         backoff *= 2.0
@@ -114,6 +113,7 @@ class LocalModelService:
                 else:
                     async with httpx.AsyncClient(timeout=30.0) as client:
                         response = await client.post(f"{self.base_url}/chat/completions", headers=self.headers, json=payload)
+                        last_response = response
                         if response.status_code == 429:
                             await asyncio.sleep(backoff)
                             backoff *= 2.0
@@ -125,7 +125,12 @@ class LocalModelService:
                     raise e
                 await asyncio.sleep(backoff)
                 backoff *= 2.0
+        
+        if last_response is not None:
+            return last_response
+            
         raise Exception(f"Failed to contact local model runner at {self.base_url} after multiple retries.")
+
 
     async def send_message(self, model: str, messages: List[Dict[str, str]], system_prompt: Optional[str] = None) -> Dict[str, Any]:
         """Send a standard blocking chat completion request to the local runner."""
@@ -243,6 +248,111 @@ class LocalModelService:
         finally:
             if response:
                 await response.aclose()
+
+    async def stream_response_with_vision(
+        self,
+        model: str,
+        messages: List[Dict[str, Any]],
+        image_data_uri: str,
+        user_message_text: str,
+        system_prompt: Optional[str] = None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream a vision (image + text) request.
+        Builds a multimodal message with the image and the user's text question,
+        following the OpenAI vision API format.
+        """
+        # Force a vision-capable model: Gemma 4 31B supports vision via OpenRouter
+        VISION_MODEL = "google/gemma-4-31b-it:free"
+        if model not in {"google/gemma-4-31b-it:free", "meta-llama/llama-3.2-11b-vision-instruct:free"}:
+            logger.info(f"Auto-switching from '{model}' to vision model '{VISION_MODEL}' for image query.")
+            model = VISION_MODEL
+
+        formatted_messages = []
+        if system_prompt:
+            formatted_messages.append({"role": "system", "content": system_prompt})
+
+        # Include previous conversation history (text-only messages)
+        formatted_messages.extend(messages)
+
+        # Build the multimodal user message with image + question
+        vision_user_message = {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_data_uri}
+                },
+                {
+                    "type": "text",
+                    "text": user_message_text or "What do you see in this image?"
+                }
+            ]
+        }
+        formatted_messages.append(vision_user_message)
+
+        payload = {
+            "model": model,
+            "messages": formatted_messages,
+            "stream": True,
+        }
+
+        response = None
+        try:
+            response = await self._send_request_with_retry(payload, stream=True)
+            if response.status_code != 200:
+                err_content = await response.aread()
+                err_text = err_content.decode("utf-8")
+                logger.error(f"Vision runner Streaming Error {response.status_code}: {err_text}")
+                error_msg = f"Vision API Error {response.status_code}"
+                try:
+                    err_json = json.loads(err_text)
+                    if "error" in err_json and "message" in err_json["error"]:
+                        error_msg = err_json["error"]["message"]
+                except Exception:
+                    pass
+                yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                return
+
+            accumulated_content = []
+
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str.strip() == "[DONE]":
+                        p_tokens = self.count_tokens(str(formatted_messages))
+                        c_tokens = self.count_tokens("".join(accumulated_content))
+                        usage_summary = {
+                            "done": True,
+                            "reasoning": "",
+                            "prompt_tokens": p_tokens,
+                            "completion_tokens": c_tokens,
+                            "total_tokens": p_tokens + c_tokens,
+                            "estimated_cost": 0.0,
+                        }
+                        yield f"data: {json.dumps(usage_summary)}\n\n"
+                        break
+
+                    try:
+                        chunk = json.loads(data_str)
+                        choices = chunk.get("choices", [])
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            content_chunk = delta.get("content", "")
+                            if content_chunk:
+                                accumulated_content.append(content_chunk)
+                                yield f"data: {json.dumps({'content': content_chunk})}\n\n"
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.error(f"Error in stream_response_with_vision: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            if response:
+                await response.aclose()
+
 
 # Singleton local model service instance
 local_model_service = LocalModelService()

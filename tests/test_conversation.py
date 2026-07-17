@@ -11,7 +11,7 @@ def authenticated_user(mock_supabase):
 def test_list_conversations(client, mock_supabase, authenticated_user):
     """Test listing conversations."""
     mock_supabase.get_conversations.return_value = [
-        {"id": "conv-1", "title": "Math Homework", "model": "google/gemini-2.5-flash", "is_pinned": False, "is_archived": False}
+        {"id": "conv-1", "title": "Math Homework", "model": "nvidia/nemotron-3-ultra-550b-a55b:free", "is_pinned": False, "is_archived": False}
     ]
     
     client.cookies.set("access_token", "valid_token")
@@ -56,3 +56,24 @@ def test_update_conversation(client, mock_supabase, authenticated_user):
     assert data["status"] == "success"
     assert data["conversation"]["title"] == "Renamed Chat"
     assert data["conversation"]["is_pinned"] is True
+
+
+def test_toggle_favorite_success(client, mock_supabase, authenticated_user):
+    """Test that POST /conversation/favorite toggles a message favorite."""
+    mock_supabase.toggle_favorite.return_value = {"status": "added", "message_id": "msg-1"}
+
+    client.cookies.set("access_token", "valid_token")
+    response = client.post("/conversation/favorite", params={"message_id": "msg-1"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["data"]["status"] == "added"
+    mock_supabase.toggle_favorite.assert_called_once_with("user-123", "msg-1")
+
+
+def test_toggle_favorite_requires_auth(client):
+    """Test that POST /conversation/favorite rejects unauthenticated requests."""
+    response = client.post("/conversation/favorite", params={"message_id": "msg-1"})
+    assert response.status_code == 401
+

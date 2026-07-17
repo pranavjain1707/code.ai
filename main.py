@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from app.config.settings import settings
 from app.api.routes import auth, chat, conversation
+from app.api.routes import weather
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitingMiddleware
 from app.services.supabase_client import supabase_service
 
@@ -48,6 +49,7 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(auth.router, prefix="", tags=["Authentication"])
 app.include_router(chat.router, prefix="", tags=["AI Chat"])
 app.include_router(conversation.router, prefix="", tags=["Conversations Management"])
+app.include_router(weather.router, prefix="", tags=["Weather"])
 
 # HTML PAGE VIEWS
 @app.get("/", response_class=HTMLResponse)

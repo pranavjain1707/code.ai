@@ -1,24 +1,385 @@
+import os
+import json
+import uuid
+import datetime
 import logging
+import threading
+import socket
+from urllib.parse import urlparse
+from types import SimpleNamespace
 from typing import Optional, List, Dict, Any
 from supabase import create_client, Client
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+class LocalJsonDatabase:
+    def __init__(self, filename="local_db.json"):
+        self.filename = filename
+        self.lock = threading.Lock()
+        self.data = {
+            "users": {},
+            "profiles": {},
+            "user_preferences": {},
+            "conversations": {},
+            "messages": {},
+            "favorites": {},
+            "api_usage": {}
+        }
+        self.load()
+
+    def load(self):
+        with self.lock:
+            if os.path.exists(self.filename):
+                try:
+                    with open(self.filename, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                        # Ensure all expected top-level keys exist and are dicts
+                        for key in self.data:
+                            if key in loaded:
+                                self.data[key] = loaded[key]
+                except Exception as e:
+                    logger.error(f"Failed to load local DB: {e}")
+            else:
+                self.save_unlocked()
+
+    def save_unlocked(self):
+        try:
+            with open(self.filename, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save local DB: {e}")
+
+    def save(self):
+        with self.lock:
+            self.save_unlocked()
+
+    def execute_query(self, query):
+        with self.lock:
+            table = query.table_name
+            if table not in self.data:
+                self.data[table] = {}
+
+            if query.action == "insert":
+                records_to_insert = query.action_data
+                if not isinstance(records_to_insert, list):
+                    records_to_insert = [records_to_insert]
+
+                inserted_records = []
+                for rec in records_to_insert:
+                    rec_copy = dict(rec)
+                    if "id" not in rec_copy:
+                        rec_copy["id"] = str(uuid.uuid4())
+                    if "created_at" not in rec_copy:
+                        rec_copy["created_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    if "updated_at" not in rec_copy:
+                        rec_copy["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    
+                    self.data[table][rec_copy["id"]] = rec_copy
+                    inserted_records.append(rec_copy)
+
+                self.save_unlocked()
+                return inserted_records
+
+            # Filter records
+            matching_ids = []
+            for r_id, r in self.data[table].items():
+                match = True
+                for col, val in query.filters:
+                    if r.get(col) != val:
+                        match = False
+                        break
+                if not match:
+                    continue
+                for col, vals in query.in_filters:
+                    if r.get(col) not in vals:
+                        match = False
+                        break
+                if not match:
+                    continue
+                for col, pat in query.ilike_filters:
+                    val_str = str(r.get(col) or "").lower()
+                    pat_clean = pat.replace("%", "").lower()
+                    if pat_clean not in val_str:
+                        match = False
+                        break
+                if match:
+                    matching_ids.append(r_id)
+
+            if query.action == "delete":
+                deleted_records = []
+                for r_id in matching_ids:
+                    deleted_records.append(self.data[table].pop(r_id))
+                self.save_unlocked()
+                return deleted_records
+
+            if query.action == "update":
+                updated_records = []
+                for r_id in matching_ids:
+                    r = self.data[table][r_id]
+                    r_copy = dict(r)
+                    for k, v in query.action_data.items():
+                        if v == "now()":
+                            v = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        r_copy[k] = v
+                    r_copy["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    self.data[table][r_id] = r_copy
+                    updated_records.append(r_copy)
+                self.save_unlocked()
+                return updated_records
+
+            # Otherwise select
+            selected_records = []
+            for r_id in matching_ids:
+                selected_records.append(dict(self.data[table][r_id]))
+
+            # Joined selection for favorites
+            if table == "favorites":
+                for fav in selected_records:
+                    msg_id = fav.get("message_id")
+                    messages_table = self.data.get("messages", {})
+                    msg = messages_table.get(msg_id)
+                    if msg:
+                        msg_copy = dict(msg)
+                        conv_id = msg_copy.get("conversation_id")
+                        conversations_table = self.data.get("conversations", {})
+                        conv = conversations_table.get(conv_id)
+                        if conv:
+                            msg_copy["conversations"] = {"title": conv.get("title")}
+                        else:
+                            msg_copy["conversations"] = {"title": "Unknown"}
+                        fav["messages"] = msg_copy
+                    else:
+                        fav["messages"] = None
+
+            # Sorting
+            if query.order_by:
+                for col, desc in reversed(query.order_by):
+                    selected_records.sort(
+                        key=lambda r: (r.get(col) is not None, r.get(col) if r.get(col) is not None else ""),
+                        reverse=desc
+                    )
+
+            # Limit
+            if query.limit_val is not None:
+                selected_records = selected_records[:query.limit_val]
+
+            return selected_records
+
+
+class MockAuth:
+    def __init__(self, db):
+        self.db = db
+
+    def sign_up(self, credentials):
+        email = credentials.get("email")
+        password = credentials.get("password")
+        options = credentials.get("options", {})
+        metadata = options.get("data", {})
+        username = metadata.get("username")
+
+        with self.db.lock:
+            # Check if user already exists
+            for uid, u in self.db.data["users"].items():
+                if u.get("email") == email:
+                    raise Exception("User already registered")
+
+            user_id = str(uuid.uuid4())
+            user_record = {
+                "id": user_id,
+                "email": email,
+                "password": password,
+                "username": username,
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            self.db.data["users"][user_id] = user_record
+
+            # Simulating Auth Trigger
+            profile = {
+                "id": user_id,
+                "email": email,
+                "username": username or email.split("@")[0],
+                "avatar_url": None,
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            self.db.data["profiles"][user_id] = profile
+
+            pref = {
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "theme": "dark",
+                "default_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "system_prompt": "You are a helpful, smart, and friendly AI assistant.",
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            self.db.data["user_preferences"][user_id] = pref
+
+            self.db.save_unlocked()
+
+        user_obj = SimpleNamespace(
+            id=user_id,
+            email=email,
+            user_metadata={"username": username}
+        )
+        session_obj = SimpleNamespace(
+            access_token=f"mock-jwt-token-{user_id}"
+        )
+        return SimpleNamespace(user=user_obj, session=session_obj)
+
+    def sign_in_with_password(self, credentials):
+        email = credentials.get("email")
+        password = credentials.get("password")
+
+        with self.db.lock:
+            user_record = None
+            for uid, u in self.db.data["users"].items():
+                if u.get("email") == email:
+                    user_record = u
+                    break
+
+            if not user_record or user_record.get("password") != password:
+                raise Exception("Invalid login credentials")
+
+            user_id = user_record["id"]
+            username = user_record.get("username")
+
+        user_obj = SimpleNamespace(
+            id=user_id,
+            email=email,
+            user_metadata={"username": username}
+        )
+        session_obj = SimpleNamespace(
+            access_token=f"mock-jwt-token-{user_id}"
+        )
+        return SimpleNamespace(user=user_obj, session=session_obj)
+
+    def sign_out(self):
+        pass
+
+    def get_user(self, token):
+        if not token or not token.startswith("mock-jwt-token-"):
+            raise Exception("Invalid session token format")
+        user_id = token.replace("mock-jwt-token-", "")
+
+        with self.db.lock:
+            user_record = self.db.data["users"].get(user_id)
+            if not user_record:
+                raise Exception("User session not found")
+            email = user_record.get("email")
+            username = user_record.get("username")
+
+        user_obj = SimpleNamespace(
+            id=user_id,
+            email=email,
+            user_metadata={"username": username}
+        )
+        return SimpleNamespace(user=user_obj)
+
+
+class MockPostgrest:
+    def __init__(self, db):
+        self.db = db
+
+    def auth(self, token):
+        return self
+
+    def table(self, table_name):
+        return MockTable(self.db, table_name)
+
+
+class MockTable:
+    def __init__(self, db, table_name):
+        self.db = db
+        self.table_name = table_name
+        self.filters = []
+        self.in_filters = []
+        self.ilike_filters = []
+        self.order_by = []
+        self.limit_val = None
+        self.action = "select"
+        self.action_data = None
+
+    def select(self, columns="*"):
+        self.action = "select"
+        return self
+
+    def insert(self, data):
+        self.action = "insert"
+        self.action_data = data
+        return self
+
+    def update(self, data):
+        self.action = "update"
+        self.action_data = data
+        return self
+
+    def delete(self):
+        self.action = "delete"
+        return self
+
+    def eq(self, column, value):
+        self.filters.append((column, value))
+        return self
+
+    def in_(self, column, values):
+        self.in_filters.append((column, values))
+        return self
+
+    def ilike(self, column, pattern):
+        self.ilike_filters.append((column, pattern))
+        return self
+
+    def order(self, column, desc=False):
+        self.order_by.append((column, desc))
+        return self
+
+    def limit(self, val):
+        self.limit_val = val
+        return self
+
+    def execute(self):
+        result = self.db.execute_query(self)
+        return SimpleNamespace(data=result)
+
+
+class MockSupabaseClient:
+    def __init__(self, db):
+        self.auth = MockAuth(db)
+        self.postgrest = MockPostgrest(db)
+        self.table = self.postgrest.table
+
+
 class SupabaseService:
     def __init__(self):
-        if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
-            logger.error("Supabase URL or Anon Key is missing from settings!")
-            self.client = None
-            self.admin_client = None
-            return
+        # We perform a DNS resolution check to determine if the Supabase host is reachable.
+        # If it fails, or if settings.SUPABASE_URL is a placeholder/empty, we use the local JSON DB.
+        is_placeholder = not settings.SUPABASE_URL or "your-supabase-project" in settings.SUPABASE_URL
+        dns_failed = False
+        if not is_placeholder:
+            try:
+                parsed = urlparse(settings.SUPABASE_URL)
+                host = parsed.netloc
+                if ":" in host:
+                    host = host.split(":")[0]
+                socket.getaddrinfo(host, None)
+            except Exception as e:
+                logger.warning(f"Failed to resolve Supabase URL host {settings.SUPABASE_URL}: {e}. Switching to Local DB Fallback.")
+                dns_failed = True
 
-        self.client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
-        
-        # Admin client bypasses RLS, useful for system operations or safe backend filtering
-        service_key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
-        self.admin_client: Client = create_client(settings.SUPABASE_URL, service_key)
-        logger.info("Supabase client initialized successfully.")
+        if is_placeholder or dns_failed:
+            logger.info("Initializing SupabaseService in LOCAL OFFLINE MODE (using local_db.json).")
+            self.db = LocalJsonDatabase()
+            self.client = MockSupabaseClient(self.db)
+            self.admin_client = MockSupabaseClient(self.db)
+        else:
+            logger.info("Connecting to remote Supabase instance...")
+            self.client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+            
+            # Admin client bypasses RLS, useful for system operations or safe backend filtering
+            service_key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
+            self.admin_client: Client = create_client(settings.SUPABASE_URL, service_key)
+            logger.info("Supabase client initialized successfully.")
 
     # AUTHENTICATION
     def signup(self, email: str, password: str, username: str) -> Dict[str, Any]:

@@ -5,6 +5,7 @@ let currentTheme = 'dark';
 let activeModel = 'llama3';
 let modelsList = [];
 let userPreferences = {};
+let pendingAttachment = null;  // Holds the staged File object for upload
 
 // Initialize Markdown Parser with Syntax Highlighting and Copy Button
 const md = window.markdownit({
@@ -179,7 +180,7 @@ async function loadPreferences() {
             userPreferences = data.settings;
             
             // Set defaults
-            activeModel = userPreferences.default_model || 'google/gemini-2.5-flash';
+            activeModel = userPreferences.default_model || 'nvidia/nemotron-3-ultra-550b-a55b:free';
             currentTheme = userPreferences.theme || 'dark';
             document.documentElement.setAttribute('data-theme', currentTheme);
             
@@ -256,7 +257,7 @@ function renderConversationsList(conversations) {
 // Select Conversation and load messages
 async function selectConversation(id) {
     activeConversationId = id;
-    document.getElementById('emptyChatWelcome').classList.add('d-none');
+    document.getElementById('emptyChatWelcome')?.classList.add('d-none');
     
     // Highlight in list
     document.querySelectorAll('.nav-item-chat').forEach(el => {
@@ -444,7 +445,7 @@ window.deleteConversation = async function(id) {
             if (id === activeConversationId) {
                 activeConversationId = null;
                 document.getElementById('chatMessages').innerHTML = '';
-                document.getElementById('emptyChatWelcome').classList.remove('d-none');
+                document.getElementById('emptyChatWelcome')?.classList.remove('d-none');
                 document.getElementById('activeChatTitle').textContent = 'New Conversation';
                 document.getElementById('activeChatModelText').textContent = 'Select a model to begin';
             }
@@ -455,19 +456,59 @@ window.deleteConversation = async function(id) {
     }
 };
 
-// Streaming Chat generator
+// ─── Attachment Helpers ────────────────────────────────────────────────────
+
+function clearAttachment() {
+    pendingAttachment = null;
+    document.getElementById('attachmentBadge').classList.add('d-none');
+    document.getElementById('attachmentFilename').textContent = '';
+    document.getElementById('fileUploadInput').value = '';
+}
+
+function stageAttachment(file) {
+    const MAX_MB = 10;
+    if (file.size > MAX_MB * 1024 * 1024) {
+        alert(`File too large. Maximum allowed size is ${MAX_MB} MB.`);
+        clearAttachment();
+        return;
+    }
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
+    const allowedExts = ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!allowedTypes.includes(file.type) && !allowedExts.includes(ext)) {
+        alert(`Unsupported file type. Please attach a PDF or an image (PNG, JPG, WEBP, GIF).`);
+        clearAttachment();
+        return;
+    }
+    pendingAttachment = file;
+    document.getElementById('attachmentFilename').textContent = file.name;
+    document.getElementById('attachmentBadge').classList.remove('d-none');
+    // Enable send button since a file is attached (message text is optional for uploads)
+    document.getElementById('sendMessageBtn').disabled = false;
+}
+
+// ─── Streaming Chat generator ──────────────────────────────────────────────
+
 async function sendMessage() {
     const textarea = document.getElementById('chatTextarea');
     const message = textarea.value.trim();
-    if (!message) return;
-    
+
+    // Require either a message or an attachment
+    if (!message && !pendingAttachment) return;
+
+    const fileToUpload = pendingAttachment;  // snapshot before clearing state
+
     textarea.value = '';
     textarea.style.height = 'auto';
     document.getElementById('sendMessageBtn').disabled = true;
-    
-    // Append User Message to UI
-    appendMessageBubble('user', message);
+
+    // Show user message in UI (show filename hint if file-only)
+    const displayMessage = message || `📎 ${fileToUpload?.name ?? 'File uploaded'}`;
+    appendMessageBubble('user', displayMessage);
     scrollToBottom();
+
+    // Clear the attachment badge
+    clearAttachment();
     
     // Add Streaming Typing placeholder
     const container = document.getElementById('chatMessages');
@@ -500,23 +541,49 @@ async function sendMessage() {
     let accumulatedReasoning = "";
     
     try {
-        const payload = {
-            message: message,
-            model: activeModel,
-            conversation_id: activeConversationId
-        };
-        
-        const response = await fetch('/chat/stream', {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(payload)
-        });
-        
+        let response;
+
+        if (fileToUpload) {
+            // ── File upload path ───────────────────────────────────────────
+            const formData = new FormData();
+            formData.append('file', fileToUpload);
+            formData.append('message', message);
+            formData.append('model', activeModel);
+            if (activeConversationId) {
+                formData.append('conversation_id', activeConversationId);
+            }
+            // Build auth headers without Content-Type (browser sets multipart boundary)
+            const uploadHeaders = {};
+            const token = localStorage.getItem('access_token');
+            if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+
+            response = await fetch('/chat/upload', {
+                method: 'POST',
+                headers: uploadHeaders,
+                body: formData,
+            });
+        } else {
+            // ── Text-only path ─────────────────────────────────────────────
+            const payload = {
+                message: message,
+                model: activeModel,
+                conversation_id: activeConversationId,
+            };
+            response = await fetch('/chat/stream', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(payload),
+            });
+        }
+
         if (!response.ok) {
             typingIndicator.remove();
-            streamingText.innerHTML = `<span class="text-danger">Failed to send message: ${response.statusText}</span>`;
+            let errText = response.statusText;
+            try { const j = await response.json(); errText = j.detail || errText; } catch (_) {}
+            streamingText.innerHTML = `<span class="text-danger">Failed to send message: ${errText}</span>`;
             return;
         }
+
         
         // Consume EventStream
         const reader = response.body.getReader();
@@ -661,12 +728,87 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Send Button click
     document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+
+    // Attach File button — open file picker
+    document.getElementById('attachFileBtn').addEventListener('click', () => {
+        document.getElementById('fileUploadInput').click();
+    });
+
+    // File picker — stage the selected file
+    document.getElementById('fileUploadInput').addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) stageAttachment(file);
+    });
+
+    // Clear attachment badge × button
+    document.getElementById('clearAttachmentBtn').addEventListener('click', () => {
+        clearAttachment();
+        // Re-evaluate send button state based on textarea content alone
+        const txt = document.getElementById('chatTextarea').value.trim();
+        document.getElementById('sendMessageBtn').disabled = txt === '';
+    });
+
+    // ── Drag & Drop Event Listeners ──────────────────────────────────────────
+    const dragOverlay = document.getElementById('dragDropOverlay');
+    let dragCounter = 0;
+
+    window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        if (dragCounter === 1 && dragOverlay) {
+            dragOverlay.classList.remove('d-none');
+        }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0 && dragOverlay) {
+            dragOverlay.classList.add('d-none');
+        }
+    });
+
+    window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        if (dragOverlay) {
+            dragOverlay.classList.add('d-none');
+        }
+        
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            stageAttachment(files[0]);
+        }
+    });
+
+    // ── Copy & Paste Event Listeners ─────────────────────────────────────────
+    window.addEventListener('paste', (e) => {
+        const clipboardItems = e.clipboardData?.items;
+        if (!clipboardItems) return;
+
+        for (const item of clipboardItems) {
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    e.preventDefault(); // Stop raw image representation or text pasting
+                    stageAttachment(file);
+                    break;
+                }
+            }
+        }
+    });
+
     
     // New Chat Trigger
     document.getElementById('newChatBtn').addEventListener('click', () => {
         activeConversationId = null;
+        clearAttachment();
         document.getElementById('chatMessages').innerHTML = '';
-        document.getElementById('emptyChatWelcome').classList.remove('d-none');
+        document.getElementById('emptyChatWelcome')?.classList.remove('d-none');
         document.getElementById('activeChatTitle').textContent = 'New Conversation';
         document.getElementById('activeChatModelText').textContent = activeModel;
         document.querySelectorAll('.nav-item-chat').forEach(el => el.classList.remove('active'));
@@ -677,7 +819,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     textarea.addEventListener('input', () => {
         textarea.style.height = 'auto';
         textarea.style.height = (textarea.scrollHeight) + 'px';
-        document.getElementById('sendMessageBtn').disabled = textarea.value.trim() === '';
+        // Keep send enabled if a file is staged even with no text
+        document.getElementById('sendMessageBtn').disabled = textarea.value.trim() === '' && !pendingAttachment;
     });
     
     textarea.addEventListener('keydown', (e) => {

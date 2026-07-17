@@ -17,6 +17,14 @@
 </head>
 <body>
 
+    <!-- Drag and Drop Overlay -->
+    <div id="dragDropOverlay" class="drag-drop-overlay d-none">
+        <div class="drag-drop-content">
+            <i class="fa-solid fa-cloud-arrow-up fa-3x mb-3 text-accent" style="color: var(--accent-secondary);"></i>
+            <h5 class="theme-text-primary">Drag & Drop PDF or Image here to attach</h5>
+        </div>
+    </div>
+
     <div class="app-container">
         
         <!-- SIDEBAR -->
@@ -129,9 +137,24 @@
 
             <!-- CHAT INPUT AREA -->
             <footer class="chat-input-area">
+                <!-- Hidden file input -->
+                <input type="file" id="fileUploadInput" accept=".pdf,image/png,image/jpeg,image/webp,image/gif" style="display:none">
+
+                <!-- Attachment badge (shown when a file is selected) -->
+                <div id="attachmentBadge" class="attachment-badge d-none">
+                    <i class="fa-solid fa-paperclip me-1"></i>
+                    <span id="attachmentFilename" class="text-truncate"></span>
+                    <button class="btn-dismiss-attachment" id="clearAttachmentBtn" title="Remove attachment">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
                 <div class="chat-input-wrapper">
                     <textarea class="chat-textarea" id="chatTextarea" rows="1" placeholder="Type your message here... (Press Shift+Enter for new line)"></textarea>
                     <div class="chat-input-actions">
+                        <button class="btn btn-attach" id="attachFileBtn" title="Attach a PDF or image">
+                            <i class="fa-solid fa-paperclip"></i>
+                        </button>
                         <button class="btn btn-send" id="sendMessageBtn" disabled>
                             <i class="fa-solid fa-paper-plane"></i>
                         </button>

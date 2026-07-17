@@ -27,6 +27,7 @@ def mock_cache_service(monkeypatch):
     mock.set.return_value = True
     mock.delete.return_value = True
     monkeypatch.setattr("app.services.redis_cache.cache_service", mock)
+    monkeypatch.setattr("app.api.routes.weather.cache_service", mock)
     return mock
 
 @pytest.fixture

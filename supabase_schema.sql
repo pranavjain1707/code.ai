@@ -26,7 +26,7 @@ create table public.user_preferences (
     id uuid primary key default gen_random_uuid(),
     user_id uuid references auth.users on delete cascade not null unique,
     theme text default 'dark' not null,
-    default_model text default 'google/gemini-2.5-flash' not null,
+    default_model text default 'nvidia/nemotron-3-ultra-550b-a55b:free' not null,
     system_prompt text default 'You are a helpful, smart, and friendly AI assistant.' not null,
     created_at timestamp with time zone default now() not null,
     updated_at timestamp with time zone default now() not null

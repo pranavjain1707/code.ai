@@ -300,6 +300,26 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-primary);
 }
 
+/* Image elements inside messages */
+.message-text-content img {
+    max-width: 100%;
+    max-height: 500px;
+    height: auto;
+    border-radius: 0.75rem;
+    margin: 1rem 0;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    display: block;
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.message-text-content img:hover {
+    transform: scale(1.02);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+
 .message-metadata {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -406,6 +426,62 @@ h1, h2, h3, h4, h5, h6 {
 .btn-send:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Attach file button — sits beside send button */
+.btn-attach {
+    width: 38px;
+    height: 38px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    background: var(--surface-glass);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+.btn-attach:hover {
+    color: white;
+    background: var(--accent-gradient);
+    transform: scale(1.05);
+    border-color: transparent;
+}
+
+/* Attachment badge — shown above the textarea when a file is staged */
+.attachment-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: color-mix(in srgb, var(--accent-secondary) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+    border-radius: 0.6rem;
+    padding: 0.3rem 0.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    max-width: 100%;
+}
+.attachment-badge .text-truncate {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.btn-dismiss-attachment {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+.btn-dismiss-attachment:hover {
+    color: var(--text-primary);
 }
 
 /* Typing Indicator Animation */
@@ -686,3 +762,41 @@ pre code {
     background: rgba(121, 28, 207, 0.03);
     border-left-color: var(--accent-primary);
 }
+
+/* Drag and Drop Overlay */
+.drag-drop-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* Allow drag events to pass through */
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.drag-drop-overlay:not(.d-none) {
+    opacity: 1;
+}
+
+.drag-drop-content {
+    background: var(--bg-card, #1e1e2e);
+    border: 2px dashed var(--accent-secondary, #b388ff);
+    border-radius: 1rem;
+    padding: 3rem;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    transform: scale(0.9);
+    transition: transform 0.2s ease-in-out;
+}
+
+.drag-drop-overlay:not(.d-none) .drag-drop-content {
+    transform: scale(1);
+}
+

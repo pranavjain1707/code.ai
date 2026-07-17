@@ -81,7 +81,7 @@ async def delete_conversation(conversation_id: str, current_user: dict = Depends
         raise HTTPException(status_code=404, detail="Conversation not found or unauthorized.")
     return {"status": "success", "message": "Conversation deleted."}
 
-@router.post("/favorite")
+@router.post("/conversation/favorite")
 async def toggle_favorite_message(message_id: str, current_user: dict = Depends(get_current_user)):
     """
     Toggles a message as favorited or unfavorited.
