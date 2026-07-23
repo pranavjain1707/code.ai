@@ -7,6 +7,15 @@ let modelsList = [];
 let userPreferences = {};
 let pendingAttachment = null;  // Holds the staged File object for upload
 
+// Voice Assistant States
+let voiceEnabled = false;
+let isSpeaking = false;
+let isListening = false;
+let speechQueue = [];
+let lastQueuedIndex = 0;
+let recognition = null;
+let speechUtterance = null;
+
 // Initialize Markdown Parser with Syntax Highlighting and Copy Button
 const md = window.markdownit({
     html: false,
@@ -487,6 +496,194 @@ function stageAttachment(file) {
     document.getElementById('sendMessageBtn').disabled = false;
 }
 
+// ─── Voice Assistant (STT & TTS) ───────────────────────────────────────────
+
+// Initialize Speech Recognition (Speech-to-Text)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+        isListening = true;
+        const micBtn = document.getElementById('micBtn');
+        if (micBtn) {
+            micBtn.classList.add('listening');
+            micBtn.setAttribute('title', 'Listening... click to stop');
+        }
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const textarea = document.getElementById('chatTextarea');
+        if (textarea) {
+            textarea.value = transcript;
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+            document.getElementById('sendMessageBtn').disabled = false;
+            
+            // Auto-enable voice response when dictating
+            enableVoiceResponse();
+            
+            // Auto-send the message
+            sendMessage();
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Speech recognition error", event.error);
+        stopListening();
+    };
+
+    recognition.onend = () => {
+        isListening = false;
+        const micBtn = document.getElementById('micBtn');
+        if (micBtn) {
+            micBtn.classList.remove('listening');
+            micBtn.setAttribute('title', 'Speak to assistant');
+        }
+    };
+}
+
+function startListening() {
+    if (recognition) {
+        stopAllSpeech(); // stop speaking if we are about to listen
+        try {
+            recognition.start();
+        } catch (e) {
+            console.error("Failed to start recognition", e);
+        }
+    } else {
+        alert("Speech recognition is not supported in this browser. Try Google Chrome or Microsoft Edge.");
+    }
+}
+
+function stopListening() {
+    if (recognition && isListening) {
+        recognition.stop();
+    }
+}
+
+function toggleListening() {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening();
+    }
+}
+
+// Speech Synthesis (Text-to-Speech)
+function speakNextInQueue() {
+    if (!voiceEnabled || isSpeaking || speechQueue.length === 0) return;
+
+    const textToSpeak = speechQueue.shift();
+    if (!textToSpeak) {
+        speakNextInQueue();
+        return;
+    }
+
+    isSpeaking = true;
+    speechUtterance = new SpeechSynthesisUtterance(textToSpeak);
+    
+    // Choose an English voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
+                           voices.find(v => v.lang.startsWith('en')) || 
+                           voices[0];
+    if (preferredVoice) {
+        speechUtterance.voice = preferredVoice;
+    }
+
+    speechUtterance.onend = () => {
+        isSpeaking = false;
+        speakNextInQueue();
+    };
+
+    speechUtterance.onerror = (e) => {
+        console.error("Speech synthesis error", e);
+        isSpeaking = false;
+        speakNextInQueue();
+    };
+
+    window.speechSynthesis.speak(speechUtterance);
+}
+
+function queueTextForSpeech(text) {
+    if (!voiceEnabled) return;
+    
+    // Clean markdown tags & syntax before speaking
+    const cleanText = text
+        .replace(/[*_`#~]/g, '')            // formatting symbols
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // markdown links -> just text
+        .replace(/<[^>]*>/g, '')            // HTML tags
+        .trim();
+        
+    if (!cleanText) return;
+
+    speechQueue.push(cleanText);
+    speakNextInQueue();
+}
+
+function stopAllSpeech() {
+    window.speechSynthesis.cancel();
+    speechQueue = [];
+    isSpeaking = false;
+}
+
+function processStreamingSpeech(text, isDone = false) {
+    if (!voiceEnabled) return;
+
+    const sentenceBoundaries = /[.!?\n]/;
+    let remainingText = text.slice(lastQueuedIndex);
+    
+    let match;
+    while ((match = sentenceBoundaries.exec(remainingText)) !== null) {
+        const boundaryIndex = match.index;
+        const sentence = remainingText.slice(0, boundaryIndex + 1).trim();
+        if (sentence) {
+            queueTextForSpeech(sentence);
+        }
+        lastQueuedIndex += boundaryIndex + 1;
+        remainingText = text.slice(lastQueuedIndex);
+    }
+
+    if (isDone && remainingText.trim()) {
+        queueTextForSpeech(remainingText.trim());
+        lastQueuedIndex = text.length;
+    }
+}
+
+function enableVoiceResponse() {
+    voiceEnabled = true;
+    const btn = document.getElementById('voiceToggleBtn');
+    if (btn) {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+        btn.setAttribute('title', 'Voice Response Enabled');
+    }
+}
+
+function disableVoiceResponse() {
+    voiceEnabled = false;
+    stopAllSpeech();
+    const btn = document.getElementById('voiceToggleBtn');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+        btn.setAttribute('title', 'Voice Response Muted');
+    }
+}
+
+function toggleVoiceResponse() {
+    if (voiceEnabled) {
+        disableVoiceResponse();
+    } else {
+        enableVoiceResponse();
+    }
+}
+
 // ─── Streaming Chat generator ──────────────────────────────────────────────
 
 async function sendMessage() {
@@ -497,6 +694,10 @@ async function sendMessage() {
     if (!message && !pendingAttachment) return;
 
     const fileToUpload = pendingAttachment;  // snapshot before clearing state
+
+    // Stop current speech output and reset queue index
+    stopAllSpeech();
+    lastQueuedIndex = 0;
 
     // Hide the welcome panel if visible
     document.getElementById('emptyChatWelcome')?.classList.add('d-none');
@@ -624,6 +825,8 @@ async function sendMessage() {
                     // Check if stream finished
                     if (dataJson.done) {
                         typingIndicator.remove();
+                        // Flush any remaining text to speech
+                        processStreamingSpeech(accumulatedText, true);
                         // Replace stream area with normal static structure to attach actions correctly
                         streamWrapper.remove();
                         appendMessageBubble(
@@ -644,6 +847,7 @@ async function sendMessage() {
                     // Check if error occurred
                     if (dataJson.error) {
                         typingIndicator.remove();
+                        stopAllSpeech();
                         streamingText.innerHTML = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> ${dataJson.error}</span>`;
                         scrollToBottom();
                         return;
@@ -664,6 +868,7 @@ async function sendMessage() {
                         accumulatedText += dataJson.content;
                         // Streaming UI render
                         streamingText.innerHTML = renderMarkdownWithMath(accumulatedText);
+                        processStreamingSpeech(accumulatedText, false);
                         scrollToBottom();
                     }
                 } catch (e) {
@@ -731,6 +936,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Send Button click
     document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+
+    // Mic Button click
+    document.getElementById('micBtn').addEventListener('click', toggleListening);
+
+    // Voice Toggle Button click
+    document.getElementById('voiceToggleBtn').addEventListener('click', toggleVoiceResponse);
 
     // Attach File button — open file picker
     document.getElementById('attachFileBtn').addEventListener('click', () => {
@@ -909,4 +1120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.removeItem('access_token');
         window.location.href = '/auth';
     });
+
+    // Stop speaking when leaving the page
+    window.addEventListener('beforeunload', stopAllSpeech);
 });

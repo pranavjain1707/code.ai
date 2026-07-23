@@ -454,6 +454,47 @@ h1, h2, h3, h4, h5, h6 {
     border-color: transparent;
 }
 
+.btn-mic {
+    width: 38px;
+    height: 38px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    background: var(--surface-glass);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-mic:hover {
+    color: white;
+    background: var(--accent-gradient);
+    transform: scale(1.05);
+    border-color: transparent;
+}
+.btn-mic.listening {
+    color: white;
+    background: #ef4444 !important;
+    border-color: transparent;
+    animation: mic-pulse 1.5s infinite ease-in-out;
+}
+
+#voiceToggleBtn.active {
+    color: var(--accent-secondary);
+    border-color: var(--accent-secondary);
+    box-shadow: 0 0 8px rgba(218, 112, 214, 0.3);
+}
+
+@keyframes mic-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+}
+
 /* Attachment badge — shown above the textarea when a file is staged */
 .attachment-badge {
     display: flex;
