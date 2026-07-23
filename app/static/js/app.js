@@ -518,7 +518,7 @@ if (SpeechRecognition) {
 
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
-        console.warn("[Voice Assistant] onresult fired. Transcript:", transcript);
+        console.log("[Voice Assistant] onresult fired. Transcript:", transcript);
         const textarea = document.getElementById('chatTextarea');
         if (textarea) {
             textarea.value = transcript;
@@ -530,9 +530,9 @@ if (SpeechRecognition) {
             enableVoiceResponse();
             
             // Auto-send the message after a short delay to allow SpeechRecognition to transition states cleanly
-            console.warn("[Voice Assistant] Scheduling auto-send...");
+            console.log("[Voice Assistant] Scheduling auto-send...");
             setTimeout(() => {
-                console.warn("[Voice Assistant] Triggering auto-send...");
+                console.log("[Voice Assistant] Triggering auto-send...");
                 sendMessage();
             }, 150);
         }
@@ -706,14 +706,14 @@ function toggleVoiceResponse() {
 // ─── Streaming Chat generator ──────────────────────────────────────────────
 
 async function sendMessage() {
-    console.warn("[Chat] sendMessage() invoked.");
+    console.log("[Chat] sendMessage() invoked.");
     const textarea = document.getElementById('chatTextarea');
     const message = textarea.value.trim();
-    console.warn("[Chat] message content:", message);
+    console.log("[Chat] message content:", message);
 
     // Require either a message or an attachment
     if (!message && !pendingAttachment) {
-        console.warn("[Chat] Empty message, returning early.");
+        console.log("[Chat] Empty message, returning early.");
         return;
     }
 
