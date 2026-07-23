@@ -5,23 +5,23 @@
     --font-heading: 'Outfit', sans-serif;
     --font-body: 'Inter', sans-serif;
     
-    /* Dark Theme (Default) */
-    --bg-primary: #0a051b;
-    --bg-secondary: rgba(18, 12, 38, 0.7);
-    --bg-surface: rgba(255, 255, 255, 0.05);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --text-primary: #f3f0ff;
-    --text-secondary: #a59ecc;
-    --text-muted: #6e679a;
-    --accent-primary: #8a2be2;
-    --accent-secondary: #da70d6;
-    --accent-gradient: linear-gradient(135deg, #8a2be2, #da70d6);
+    /* Sleek Slate Dark Theme (High Contrast & Clear) */
+    --bg-primary: #0b0f19;
+    --bg-secondary: rgba(15, 23, 42, 0.75);
+    --bg-surface: rgba(255, 255, 255, 0.06);
+    --border-color: rgba(255, 255, 255, 0.12);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --accent-primary: #6366f1;
+    --accent-secondary: #a855f7;
+    --accent-gradient: linear-gradient(135deg, #6366f1, #a855f7);
     --hover-overlay: rgba(255, 255, 255, 0.08);
-    --chat-user-bg: rgba(138, 43, 226, 0.15);
-    --chat-bot-bg: rgba(255, 255, 255, 0.03);
+    --chat-user-bg: rgba(99, 102, 241, 0.18);
+    --chat-bot-bg: rgba(30, 41, 59, 0.45);
     
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.35);
     --glass-blur: blur(16px);
     --close-btn-filter: invert(1) grayscale(1) brightness(2);
 }
@@ -73,8 +73,8 @@ body::before {
     left: -10%;
     width: 120%;
     height: 120%;
-    background: radial-gradient(circle at 15% 15%, rgba(138, 43, 226, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 85% 85%, rgba(218, 112, 214, 0.12) 0%, transparent 40%);
+    background: radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
     z-index: -1;
     pointer-events: none;
     transition: background 0.4s ease;
