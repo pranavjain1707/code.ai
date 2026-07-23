@@ -517,6 +517,7 @@ if (SpeechRecognition) {
 
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
+        console.log("[Voice Assistant] onresult fired. Transcript:", transcript);
         const textarea = document.getElementById('chatTextarea');
         if (textarea) {
             textarea.value = transcript;
@@ -528,7 +529,9 @@ if (SpeechRecognition) {
             enableVoiceResponse();
             
             // Auto-send the message after a short delay to allow SpeechRecognition to transition states cleanly
+            console.log("[Voice Assistant] Scheduling auto-send...");
             setTimeout(() => {
+                console.log("[Voice Assistant] Triggering auto-send...");
                 sendMessage();
             }, 150);
         }
@@ -702,11 +705,16 @@ function toggleVoiceResponse() {
 // ─── Streaming Chat generator ──────────────────────────────────────────────
 
 async function sendMessage() {
+    console.log("[Chat] sendMessage() invoked.");
     const textarea = document.getElementById('chatTextarea');
     const message = textarea.value.trim();
+    console.log("[Chat] message content:", message);
 
     // Require either a message or an attachment
-    if (!message && !pendingAttachment) return;
+    if (!message && !pendingAttachment) {
+        console.log("[Chat] Empty message, returning early.");
+        return;
+    }
 
     const fileToUpload = pendingAttachment;  // snapshot before clearing state
 
