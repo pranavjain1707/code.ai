@@ -527,8 +527,10 @@ if (SpeechRecognition) {
             // Auto-enable voice response when dictating
             enableVoiceResponse();
             
-            // Auto-send the message
-            sendMessage();
+            // Auto-send the message after a short delay to allow SpeechRecognition to transition states cleanly
+            setTimeout(() => {
+                sendMessage();
+            }, 150);
         }
     };
 
@@ -576,38 +578,45 @@ function toggleListening() {
 
 // Speech Synthesis (Text-to-Speech)
 function speakNextInQueue() {
-    if (!voiceEnabled || isSpeaking || speechQueue.length === 0) return;
+    try {
+        if (!voiceEnabled || isSpeaking || speechQueue.length === 0) return;
+        if (!window.speechSynthesis) return;
 
-    const textToSpeak = speechQueue.shift();
-    if (!textToSpeak) {
-        speakNextInQueue();
-        return;
-    }
+        const textToSpeak = speechQueue.shift();
+        if (!textToSpeak) {
+            speakNextInQueue();
+            return;
+        }
 
-    isSpeaking = true;
-    speechUtterance = new SpeechSynthesisUtterance(textToSpeak);
-    
-    // Choose an English voice
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
-                           voices.find(v => v.lang.startsWith('en')) || 
-                           voices[0];
-    if (preferredVoice) {
-        speechUtterance.voice = preferredVoice;
-    }
+        isSpeaking = true;
+        speechUtterance = new SpeechSynthesisUtterance(textToSpeak);
+        
+        // Choose an English voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
+                               voices.find(v => v.lang.startsWith('en')) || 
+                               voices[0];
+        if (preferredVoice) {
+            speechUtterance.voice = preferredVoice;
+        }
 
-    speechUtterance.onend = () => {
+        speechUtterance.onend = () => {
+            isSpeaking = false;
+            speakNextInQueue();
+        };
+
+        speechUtterance.onerror = (e) => {
+            console.error("Speech synthesis error", e);
+            isSpeaking = false;
+            speakNextInQueue();
+        };
+
+        window.speechSynthesis.speak(speechUtterance);
+    } catch (err) {
+        console.error("Failed to speak next in queue:", err);
         isSpeaking = false;
         speakNextInQueue();
-    };
-
-    speechUtterance.onerror = (e) => {
-        console.error("Speech synthesis error", e);
-        isSpeaking = false;
-        speakNextInQueue();
-    };
-
-    window.speechSynthesis.speak(speechUtterance);
+    }
 }
 
 function queueTextForSpeech(text) {
@@ -627,7 +636,13 @@ function queueTextForSpeech(text) {
 }
 
 function stopAllSpeech() {
-    window.speechSynthesis.cancel();
+    try {
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+    } catch (e) {
+        console.error("Failed to cancel speech synthesis:", e);
+    }
     speechQueue = [];
     isSpeaking = false;
 }
