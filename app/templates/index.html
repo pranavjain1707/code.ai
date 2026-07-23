@@ -13,7 +13,7 @@
     <!-- Highlight.js VS2015 Dark style for code blocks -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
     <!-- Custom Style -->
-    <link rel="stylesheet" href="/static/css/style.css?v=1.0.5">
+    <link rel="stylesheet" href="/static/css/style.css?v=1.0.6">
 </head>
 <body>
 
@@ -161,6 +161,7 @@
                         <button class="btn btn-mic" id="micBtn" title="Speak to assistant">
                             <i class="fa-solid fa-microphone"></i>
                         </button>
+                        <button class="btn btn-secondary btn-sm" id="debugSpeechBtn" style="padding: 2px 5px; font-size: 10px;" onclick="if(window.recognition){console.log('[Debug] Clicking debug speech button');window.recognition.onresult({ results: [[{ transcript: 'this is a simulated voice message' }]] });}">Debug STT</button>
                         <button class="btn btn-send" id="sendMessageBtn" disabled>
                             <i class="fa-solid fa-paper-plane"></i>
                         </button>
@@ -278,6 +279,6 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     
     <!-- App Client Script -->
-    <script src="/static/js/app.js?v=1.0.5"></script>
+    <script src="/static/js/app.js?v=1.0.6"></script>
 </body>
 </html>

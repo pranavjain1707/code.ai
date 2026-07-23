@@ -502,6 +502,7 @@ function stageAttachment(file) {
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognition) {
     recognition = new SpeechRecognition();
+    window.recognition = recognition;
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
