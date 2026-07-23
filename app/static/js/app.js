@@ -498,6 +498,9 @@ async function sendMessage() {
 
     const fileToUpload = pendingAttachment;  // snapshot before clearing state
 
+    // Hide the welcome panel if visible
+    document.getElementById('emptyChatWelcome')?.classList.add('d-none');
+
     textarea.value = '';
     textarea.style.height = 'auto';
     document.getElementById('sendMessageBtn').disabled = true;
